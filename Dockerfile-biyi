@@ -1,0 +1,79 @@
+FROM                 centos:7.6.1810
+MAINTAINER           jilmy   email:jilmy@163.com
+
+#set for variable
+ARG softDir=/usr/local/software
+ARG httpdDir=/etc/httpd
+ARG phpDir=/usr/local/php
+ARG webDir=/usr/local/webservices
+ARG mysqlDataDir=/data/mysql
+ARG initDir=/usr/lib/systemd/system
+ARG shellDir=/usr/local/bin
+ARG projectName=biyicms
+
+# configuration of softdir
+RUN mkdir -p $softDir \
+    && mkdir -p $webDir \
+    && mkdir -p $mysqlDataDir \
+
+# configuration of timezone and time
+    && ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
+    && echo 'Asia/Shanghai' >/etc/timezone \
+
+# Install the required packages for yum update and common support 
+#   && yum update -y \
+    && yum -y install initscripts* \
+    && yum -y install lsof yum-utils dos2unix wget curl bind-utils net-tools iproute which lsb telnet tar unzip gcc-c++ \
+    && yum -y install open-server vim sed pcre pcre-devel zlib zlib-devel \
+    && yum clean all \
+
+# configuration of chinese support and display  
+    && yum -y install kde-l10n-Chinese \
+    && yum -y reinstall glibc-common \
+    && yum clean all \
+    && localedef -c -f UTF-8 -i zh_CN zh_CN.utf8 \
+    && echo -e 'LANG="zh_CN.UTF-8"\nLC_ALL="zh_CN.UTF-8"' > /etc/locale.conf \
+    && echo "export LC_ALL=zh_CN.UTF-8"  >>  /etc/profile \
+    && echo "export LC_CTYPE=zh_CN.UTF-8"  >>  /etc/profile \
+    && source /etc/profile \
+
+# Install the required packages for apache
+    && yum -y install gcc make zlib-devel pcre-devel pcre httpd \
+    && yum clean all \
+    && systemctl enable httpd.service \
+
+# Install the required packages for php
+    && yum -y install epel-release \
+    && yum -y install http://rpms.remirepo.net/enterprise/remi-release-7.rpm \
+    && yum -y install yum-utils \
+    && yum --enablerepo=remi-php73 -y install php \
+    && yum --enablerepo=remi-php73 -y install php-fpm php-cli php-bcmath php-xml php-soap php-xmlrpc php-mbstring php-json php-gd php-mcrypt php-mysql libjpeg* libpng* freetype* php-mysqlnd php-opcache php-pdo php-pecl-crypto php-pecl-mcrypt php-pecl-geoip php-recode php-snmp php-soap \
+    && yum clean all \
+    && systemctl enable php-fpm \
+    && php -v
+
+# configuration of language
+ENV LANG "zh_CN.UTF-8"
+ENV LC_ALL "zh_CN.UTF-8"
+
+# configuration of apache
+COPY httpd.conf /etc/httpd/conf/
+COPY vhost.conf $httpdDir/conf.d
+
+# configuration of php
+
+# configuration of webservices
+#COPY modifyConf.sh $shellDir
+COPY $projectName.tar.gz $webDir
+WORKDIR $webDir
+#RUN unzip -n \*.zip \
+#RUN for i in *.zip ; do unzip $i; done
+RUN for i in *.tar.gz ; do tar zxvf $i; done \
+    && chmod -R 777 /usr/local/webservices/$projectName \
+    && chown -R apache:apache /usr/local/webservices/$projectName
+
+# container listener port
+EXPOSE 8000
+
+# startup web application services by self
+CMD ["/usr/sbin/init"]
